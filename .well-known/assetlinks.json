@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "io.github.newbroman.twa",
+    "sha256_cert_fingerprints": ["75:21:A4:0A:7B:10:43:7C:BA:23:5F:DA:EA:70:7A:2B:4E:C0:B9:6C:61:26:66:92:86:D7:53:E4:66:10:89:B1"]
+  }
+}]
