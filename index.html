@@ -1,5 +1,278 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>newbroman</title></head>
-<body><p>Digital asset links for Polski Trener.</p></body>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Martin's App Shelf</title>
+<meta name="description" content="Language trainers, science tools and games built by Martin Hollingham, with links to each app and its source.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one reading column; shelves of cards grouped by what the app is for, older builds folded away at the foot */
+:root {
+  --bg: #eef2f1;
+  --surface: #ffffff;
+  --ink: #15201d;
+  --muted: #55625e;
+  --line: #d3dcd9;
+  --accent: #2f6b55;
+  --accent-ink: #ffffff;
+  --tag: #e2ebe7;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111816; --surface: #19221f; --ink: #e6eeeb; --muted: #9aaba5;
+    --line: #2c3834; --accent: #7cc4a6; --accent-ink: #0d1a15; --tag: #22302b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111816; --surface: #19221f; --ink: #e6eeeb; --muted: #9aaba5;
+  --line: #2c3834; --accent: #7cc4a6; --accent-ink: #0d1a15; --tag: #22302b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.55 var(--f-body);
+}
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 40px 64px; display: grid; gap: 44px; }
+header { display: grid; gap: 14px; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(2rem, 6vw, 3.1rem); line-height: 1.05; margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+.lede { margin: 0; max-width: 60ch; color: var(--muted); font-size: 1.05rem; }
+.filter { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.filter input {
+  flex: 1 1 260px; min-width: 0; font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+}
+.filter input:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.count { font: 0.8rem var(--f-mono); color: var(--muted); }
+section { display: grid; gap: 16px; }
+.shelf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+h2 { font-family: var(--f-display); font-weight: 700; font-size: 1.35rem; margin: 0; text-wrap: balance; }
+.shelf-head p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 14px; }
+.app {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.app.big { grid-column: 1 / -1; }
+.app h3 { font-family: var(--f-display); font-weight: 500; font-size: 1.15rem; margin: 0; line-height: 1.2; }
+.app p { margin: 0; color: var(--muted); }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tag { font: 0.72rem var(--f-mono); letter-spacing: 0.04em; text-transform: uppercase; background: var(--tag); color: var(--ink); padding: 2px 7px; border-radius: 4px; }
+.date { font: 0.75rem var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 4px; }
+.links a { text-decoration: none; font-weight: 700; font-size: 0.92rem; border-radius: 6px; padding: 6px 12px; }
+.links a.go { background: var(--accent); color: var(--accent-ink); }
+.links a.sub { border: 1px solid var(--line); color: var(--ink); }
+.links a.src { color: var(--muted); font: 0.78rem var(--f-mono); padding-inline: 4px; align-self: center; }
+.links a:hover { filter: brightness(1.08); }
+details { border-top: 1px solid var(--line); padding-top: 12px; }
+summary { cursor: pointer; font-family: var(--f-display); font-weight: 700; font-size: 1.1rem; }
+.old { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; }
+.old li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.old a { color: var(--accent); font-weight: 700; }
+.old span { color: var(--muted); font-size: 0.92rem; }
+.empty { color: var(--muted); font-style: italic; }
+footer { color: var(--muted); font-size: 0.85rem; }
+footer a { color: inherit; }
+@media (prefers-reduced-motion: no-preference) { .links a { transition: filter .15s; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Martin's App Shelf</h1>
+  <p class="lede">Language trainers, field and research tools, and a few experiments. Every app runs in the browser, and most install to your phone and work offline.</p>
+  <div class="filter">
+    <label for="q" class="count" style="width:100%">Find an app</label>
+    <input id="q" type="search" placeholder="Try “Polish”, “Welsh”, “time”, “numbers”…" autocomplete="off">
+    <span class="count" id="n"></span>
+  </div>
+</header>
+
+<section data-shelf>
+  <div class="shelf-head"><h2>Science and sound</h2><p>Current projects</p></div>
+  <div class="grid">
+    <article class="app big" data-k="music spheres astronomy sound kepler pythagoras welsh polish">
+      <h3>Music of the Spheres</h3>
+      <p>Hear the harmony of the spheres as Pythagoras, Plato, Ptolemy and Kepler imagined it, played from where the planets actually are right now. Includes a 2D dial, a 3D flight through the solar system and a dance mode, in English, Polish and Welsh.</p>
+      <div class="meta"><span class="tag">EN</span><span class="tag">PL</span><span class="tag">CY</span><span class="tag">Sound</span><span class="date">Oct 2026</span></div>
+      <div class="links">
+        <a class="go" href="https://newbroman.github.io/Music_of_the_Spheres/">Open the dial</a>
+        <a class="sub" href="https://newbroman.github.io/Music_of_the_Spheres/flight.html">3D flight</a>
+        <a class="sub" href="https://newbroman.github.io/Music_of_the_Spheres/dance.html">Dance</a>
+        <a class="sub" href="https://newbroman.github.io/Music_of_the_Spheres/pl/">Po polsku</a>
+        <a class="sub" href="https://newbroman.github.io/Music_of_the_Spheres/cy/">Yn Gymraeg</a>
+        <a class="sub" href="https://newbroman.github.io/Music_of_the_Spheres/help.html">How it works</a>
+        <a class="src" href="https://github.com/newbroman/Music_of_the_Spheres">source</a>
+      </div>
+    </article>
+    <article class="app" data-k="newborough hydrology groundwater dune research water table">
+      <h3>Newborough Warren Groundwater Research</h3>
+      <p>The public home of a long-term study of the water table under the Newborough Warren dunes on Anglesey: reports, figures and interactive tools.</p>
+      <div class="meta"><span class="tag">Research</span><span class="date">Oct 2026</span></div>
+      <div class="links">
+        <a class="go" href="https://newbroman.github.io/Newborough_Hydrology/">Open site</a>
+        <a class="sub" href="https://newbroman.github.io/Newborough_Hydrology/scenario_viewer.html">Scenario viewer</a>
+        <a class="sub" href="https://newbroman.github.io/Newborough_Hydrology/hindcast_film.html">Century hindcast film</a>
+        <a class="sub" href="https://newbroman.github.io/Newborough_Hydrology/seasonal_extremes_scatter.html">Seasonal extremes</a>
+        <a class="src" href="https://github.com/newbroman/Newborough_Hydrology">source</a>
+      </div>
+    </article>
+    <article class="app" data-k="newborough well logger dipwell field groundwater offline">
+      <h3>Newborough Well Logger</h3>
+      <p>Offline field app for recording dipwell readings around the Newborough Warren well network. Installs to a phone and needs no signal, account or server.</p>
+      <div class="meta"><span class="tag">Fieldwork</span><span class="tag">Offline</span><span class="date">Oct 2026</span></div>
+      <div class="links">
+        <a class="go" href="https://newbroman.github.io/Newborough_welllogger/">Open</a>
+        <a class="src" href="https://github.com/newbroman/Newborough_welllogger">source</a>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section data-shelf>
+  <div class="shelf-head"><h2>Learn Polish</h2><p>Phrases, numbers, dates, time and rhymes</p></div>
+  <div class="grid">
+    <article class="app" data-k="polish phrases survival speech pronunciation flashcards">
+      <h3>Polish Phrase Master</h3>
+      <p>Survival Polish through flashcards, quizzes and typing practice, with speech recognition that scores your pronunciation.</p>
+      <div class="meta"><span class="tag">PL</span><span class="tag">Phrases</span><span class="date">Jun 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/Polish_survival_phrases/">Open</a><a class="src" href="https://github.com/newbroman/Polish_survival_phrases">source</a></div>
+    </article>
+    <article class="app" data-k="polish wierszyki nursery rhymes proverbs jokes">
+      <h3>Wierszyki</h3>
+      <p>Traditional Polish nursery rhymes, proverbs, idioms and jokes, read aloud and explained in English, with vocabulary, grammar notes and quizzes.</p>
+      <div class="meta"><span class="tag">PL</span><span class="tag">Rhymes</span><span class="date">Jun 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/Wiersyzki/">Open</a><a class="src" href="https://github.com/newbroman/Wiersyzki">source</a></div>
+    </article>
+    <article class="app" data-k="polish numbers dates time clock android trener">
+      <h3>Polski: Numbers, Dates &amp; Time</h3>
+      <p>The number, date and clock trainers together in one app. This is also the version behind the Android app.</p>
+      <div class="meta"><span class="tag">PL</span><span class="tag">Android</span><span class="date">Jun 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/Polska/polski.html">Open</a><a class="src" href="https://github.com/newbroman/Polska">source</a></div>
+    </article>
+    <article class="app" data-k="polish numbers trener liczb">
+      <h3>Polski Trener Liczb</h3>
+      <p>Hear and say Polish numbers until they come automatically.</p>
+      <div class="meta"><span class="tag">PL</span><span class="tag">Numbers</span><span class="date">Apr 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/Polish-number-trainer/">Open</a><a class="src" href="https://github.com/newbroman/Polish-number-trainer">source</a></div>
+    </article>
+    <article class="app" data-k="polish date calendar holidays culture grammar">
+      <h3>Say the Date in Polish</h3>
+      <p>A calendar trainer for reading dates aloud, with Polish holidays, cultural traditions and the grammar rules behind each form.</p>
+      <div class="meta"><span class="tag">PL</span><span class="tag">Dates</span><span class="date">Jan 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/too-obvious/">Open</a><a class="src" href="https://github.com/newbroman/too-obvious">source</a></div>
+    </article>
+    <article class="app" data-k="polish time clock">
+      <h3>Say the Time in Polish</h3>
+      <p>Clock-face practice for telling the time in Polish.</p>
+      <div class="meta"><span class="tag">PL</span><span class="tag">Time</span><span class="date">Jan 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/Polish-clock/">Open</a><a class="src" href="https://github.com/newbroman/Polish-clock">source</a></div>
+    </article>
+    <article class="app" data-k="polish food units quantities cases kilogram">
+      <h3>Polish Food Master</h3>
+      <p>Shopping quantities in Polish: practise which form each unit takes after a number, such as kilogram, butelka and sztuka.</p>
+      <div class="meta"><span class="tag">PL</span><span class="tag">Grammar</span><span class="date">Dec 2025</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/Polish-unit-app-v1/">Open</a><a class="src" href="https://github.com/newbroman/Polish-unit-app-v1">source</a></div>
+    </article>
+    <article class="app" data-k="polish numbers hands-free handsfree">
+      <h3>Polish Numbers Hands-free</h3>
+      <p>Number phrases from Polish to English and back, with a hands-free mode for practising without touching the screen.</p>
+      <div class="meta"><span class="tag">PL</span><span class="tag">Numbers</span><span class="date">Dec 2025</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/PolishNumbershandsfree/">Open</a><a class="src" href="https://github.com/newbroman/PolishNumbershandsfree">source</a></div>
+    </article>
+    <article class="app" data-k="polish alphabet letters sounds">
+      <h3>Polish Alphabet</h3>
+      <p>Hear a Polish letter or sound and pick the matching tile.</p>
+      <div class="meta"><span class="tag">PL</span><span class="tag">Alphabet</span><span class="date">Jan 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/Alphabet-/">Open</a><a class="src" href="https://github.com/newbroman/Alphabet-">source</a></div>
+    </article>
+  </div>
+</section>
+
+<section data-shelf>
+  <div class="shelf-head"><h2>Other languages</h2><p>Welsh, German and Vietnamese</p></div>
+  <div class="grid">
+    <article class="app" data-k="welsh cymraeg numbers mutation hyfforddwr">
+      <h3>Welsh Number Trainer</h3>
+      <p>Welsh numbers with the soft-mutation rules, spoken answers, and audio-only and hands-free modes.</p>
+      <div class="meta"><span class="tag">CY</span><span class="tag">Numbers</span><span class="date">Feb 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/Hyfforddwr/">Open</a><a class="src" href="https://github.com/newbroman/Hyfforddwr">source</a></div>
+    </article>
+    <article class="app" data-k="german deutsch time clock uhr">
+      <h3>Say the Time in German</h3>
+      <p>Deutsch Zeit-Trainer: clock-face practice for telling the time in German.</p>
+      <div class="meta"><span class="tag">DE</span><span class="tag">Time</span><span class="date">Jan 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/German-clock2/">Open</a><a class="src" href="https://github.com/newbroman/German-clock2">source</a></div>
+    </article>
+    <article class="app" data-k="vietnamese viet alphabet tones">
+      <h3>Viet Master Pro</h3>
+      <p>Vietnamese letters and tones: hear a sound and pick the matching tile.</p>
+      <div class="meta"><span class="tag">VI</span><span class="tag">Alphabet</span><span class="date">Jan 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/Vietnamese_alphabet-/">Open</a><a class="src" href="https://github.com/newbroman/Vietnamese_alphabet-">source</a></div>
+    </article>
+  </div>
+</section>
+
+<section data-shelf>
+  <div class="shelf-head"><h2>Games</h2></div>
+  <div class="grid">
+    <article class="app" data-k="game morris board two player">
+      <h3>Nine Men's Morris</h3>
+      <p>The old board game of mills and captures, for two players on one screen.</p>
+      <div class="meta"><span class="tag">Game</span><span class="date">Apr 2026</span></div>
+      <div class="links"><a class="go" href="https://newbroman.github.io/Morris/">Play</a><a class="src" href="https://github.com/newbroman/Morris">source</a></div>
+    </article>
+  </div>
+</section>
+
+<p class="empty" id="none" hidden>No app matches that. Try a language or a topic.</p>
+
+<details>
+  <summary>Earlier versions</summary>
+  <ul class="old">
+    <li><a href="https://newbroman.github.io/PolMaster/">PolMaster</a><span>Polish Phrase Master v17, an earlier build</span></li>
+    <li><a href="https://newbroman.github.io/speech_master/">speech_master</a><span>Polish Phrase Master v2.0 with the gender toggle</span></li>
+    <li><a href="https://newbroman.github.io/polish_speech/">polish_speech</a><span>Polish Phrase Master v2.0, copy of the above</span></li>
+    <li><a href="https://newbroman.github.io/obvious/">obvious</a><span>Say the Date in Polish, before the reorganisation</span></li>
+    <li><a href="https://newbroman.github.io/Polishdate2/">Polishdate2</a><span>Polish Date Master with name days</span></li>
+    <li><a href="https://newbroman.github.io/Polish-Events-toolkit2/">Polish-Events-toolkit2</a><span>Polish Date Master, earlier</span></li>
+    <li><a href="https://newbroman.github.io/Polishdates/">Polishdates</a><span>Learn Polish Dates, first version</span></li>
+    <li><a href="https://newbroman.github.io/Dates-polish-/">Dates-polish-</a><span>Learn Polish Dates, copy</span></li>
+    <li><a href="https://newbroman.github.io/German-Clock/">German-Clock</a><span>German Time Learner, first version with Polish help pages</span></li>
+  </ul>
+</details>
+
+<footer>Built by Martin Hollingham · <a href="https://github.com/newbroman">github.com/newbroman</a></footer>
+</div>
+
+<script>
+(function () {
+  var q = document.getElementById('q'), n = document.getElementById('n'), none = document.getElementById('none');
+  var apps = [].slice.call(document.querySelectorAll('.app'));
+  var shelves = [].slice.call(document.querySelectorAll('[data-shelf]'));
+  function run() {
+    var t = q.value.trim().toLowerCase(), shown = 0;
+    apps.forEach(function (a) {
+      var hit = !t || (a.dataset.k + ' ' + a.textContent).toLowerCase().indexOf(t) > -1;
+      a.hidden = !hit; if (hit) shown++;
+    });
+    shelves.forEach(function (s) { s.hidden = !s.querySelector('.app:not([hidden])'); });
+    none.hidden = shown > 0;
+    n.textContent = shown + ' of ' + apps.length + ' apps';
+  }
+  q.addEventListener('input', run); run();
+})();
+</script>
+</body>
 </html>
