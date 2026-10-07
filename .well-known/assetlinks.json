@@ -19,7 +19,8 @@
       "namespace": "android_app",
       "package_name": "io.github.newbroman.spheres",
       "sha256_cert_fingerprints": [
-        "09:54:3D:52:93:25:AC:E1:11:B2:B1:9E:79:8A:35:3C:3C:A9:B7:6C:A6:34:87:7D:D6:CD:D5:1F:50:CB:E2:B5"
+        "09:54:3D:52:93:25:AC:E1:11:B2:B1:9E:79:8A:35:3C:3C:A9:B7:6C:A6:34:87:7D:D6:CD:D5:1F:50:CB:E2:B5",
+        "DF:95:56:63:29:60:02:54:DF:60:23:11:65:00:77:69:99:16:5A:A8:1D:16:BC:BE:4C:3F:96:33:88:42:D7:00"
       ]
     }
   }
