@@ -23,5 +23,17 @@
         "DF:95:56:63:29:60:02:54:DF:60:23:11:65:00:77:69:99:16:5A:A8:1D:16:BC:BE:4C:3F:96:33:88:42:D7:00"
       ]
     }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.newbroman.polishphrases",
+      "sha256_cert_fingerprints": [
+        "98:C7:16:48:B9:47:A1:CB:CD:BB:91:9D:42:41:49:33:DA:88:E7:E0:01:A4:FD:27:97:7E:7E:FC:F0:F3:D7:B3"
+      ]
+    }
   }
 ]
