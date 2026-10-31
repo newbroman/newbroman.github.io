@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cloze – learn words in real sentences</title>
+<meta name="description" content="Fill the missing word in real sentences – Polish, Welsh, German and Norwegian – with spaced repetition. Works offline.">
+<meta name="theme-color" content="#0b0b0a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root { --bg:#0b0b0a; --card:#15140f; --line:#2c2a26; --fg:#ece8e1; --dim:#8c877f; --sand:#d9b26a; --good:#5fd38a; --bad:#ff7a6a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { min-height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; font-weight: 300; margin: 0 auto 0 0; letter-spacing: .5px; }
+  select, button, input { font: inherit; color: var(--fg); }
+  select { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; max-width: 46vw; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { background: none; border: 0; padding: 6px 10px; color: var(--dim); }
+  .seg button.on { background: var(--card); color: var(--sand); }
+  .stats { display: flex; gap: 12px; padding: 0 14px 8px; color: var(--dim); font-size: 13px; flex-wrap: wrap; }
+  .stats b { color: var(--fg); font-weight: 500; }
+  .bar { height: 4px; background: var(--line); margin: 0 14px; border-radius: 2px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--sand); width: 0; transition: width .3s; }
+  main { flex: 1; padding: 16px 14px 24px; max-width: 640px; width: 100%; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px 16px; }
+  .level { font-size: 12px; color: var(--dim); display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .sent { font-size: 23px; line-height: 1.5; min-height: 2.6em; word-wrap: break-word; }
+  .gap { display: inline-block; min-width: 3.2em; border-bottom: 2px solid var(--sand); color: var(--sand); text-align: center; padding: 0 2px; }
+  .gap.good { color: var(--good); border-color: var(--good); }
+  .gap.bad { color: var(--bad); border-color: var(--bad); }
+  .en { color: var(--dim); font-size: 16px; margin-top: 10px; }
+  .en.hidden { filter: blur(6px); cursor: pointer; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .choices button { background: none; border: 1px solid var(--line); border-radius: 14px; padding: 14px 8px; font-size: 18px; }
+  .choices button:active { background: var(--line); }
+  .choices button.good { border-color: var(--good); color: var(--good); }
+  .choices button.bad { border-color: var(--bad); color: var(--bad); }
+  .typing { display: flex; gap: 8px; margin-top: 18px; }
+  .typing input { flex: 1; min-width: 0; background: none; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; font-size: 19px; }
+  .typing input:focus { outline: none; border-color: var(--sand); }
+  .btn { background: var(--sand); color: #111; border: 0; border-radius: 14px; padding: 12px 18px; font-weight: 600; }
+  .ghost { background: none; color: var(--dim); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+  .msg { margin-top: 14px; font-size: 15px; min-height: 1.4em; }
+  .msg.good { color: var(--good); } .msg.bad { color: var(--bad); }
+  .done { text-align: center; padding: 24px 8px; }
+  .done h2 { font-weight: 300; margin: 0 0 8px; }
+  footer { color: var(--dim); font-size: 12px; text-align: center; padding: 14px; }
+  footer a { color: var(--dim); }
+  .keys { color: var(--dim); font-size: 12px; margin-top: 10px; }
+  @media (max-width: 380px) { .sent { font-size: 20px; } .choices button { font-size: 16px; padding: 12px 6px; } header h1 { font-size: 18px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cloze</h1>
+  <select id="lang" aria-label="Language">
+    <option value="pol">Polish</option><option value="cym">Welsh</option><option value="deu">German</option><option value="nob">Norwegian</option>
+  </select>
+  <span class="seg" role="group" aria-label="Answer by">
+    <button id="mChoice" type="button">Choice</button><button id="mType" type="button">Type</button>
+  </span>
+  <span class="seg"><button id="mListen" type="button" title="Hear the sentence before you answer">🔊 Listen</button></span>
+</header>
+<div class="stats" id="stats"></div>
+<div class="bar"><i id="prog"></i></div>
+<main id="main"><div class="card"><div class="sent">Loading…</div></div></main>
+<footer>Sentences from <a href="https://tatoeba.org" target="_blank" rel="noopener">Tatoeba</a> (CC-BY 2.0 FR)<span id="srcLink"></span> · progress is kept on this device</footer>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const DAY = 864e5, ROUND = 10;
+/* Mastery steps as in Clozemaster: 0 → 25 → 50 → 75 → 100 %, seen again after these gaps. */
+const STEP_GAP = [0, 1, 10, 30, 180].map(d => d * DAY);
+const LS = { get(k, d) { try { const v = localStorage.getItem("cloze." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+             set(k, v) { try { localStorage.setItem("cloze." + k, JSON.stringify(v)); } catch {} } };
+const cfg = Object.assign({ lang: "pol", mode: "choice", listen: false, showEn: true }, LS.get("cfg", {}));
+const prog = LS.get("progress", {});      // { lang: { c: { id: [level, due] }, n: nextNewIndex } }
+const days = LS.get("days", {});          // { "2026-10-31": points }
+const decks = {};
+let deck = null, queue = [], round = [], pos = 0, roundRight = 0, card = null, answered = false;
+
+const today = () => new Date().toISOString().slice(0, 10);
+function streak() {
+  let s = 0, d = new Date();
+  if (!days[today()]) d.setDate(d.getDate() - 1);   // today not started yet doesn't break the streak
+  while (days[d.toISOString().slice(0, 10)]) { s++; d.setDate(d.getDate() - 1); }
+  return s;
+}
+const P = () => (prog[cfg.lang] ||= { c: {}, n: 0 });
+
+/* Letters a learner may leave off: Polish ą ć ę ł ń ó ś ź ż, Welsh â ŵ ŷ…, German ä ö ü ß, Norwegian æ ø å. */
+function plain(s) {
+  return s.toLowerCase().replace(/ł/g, "l").replace(/ß/g, "ss").replace(/æ/g, "ae").replace(/ø/g, "o")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[’']/g, "'").trim();
+}
+/* Which letters were wrong only by their accent, e.g. "ł, ę". */
+function accentHint(typed, want) {
+  const t = typed.trim().toLowerCase(), w = want.toLowerCase(), out = [];
+  for (let i = 0; i < w.length; i++) if (t[i] !== w[i] && plain(w[i]) === plain(t[i] || "")) out.push(w[i]);
+  return [...new Set(out)].join(", ");
+}
+
+async function loadDeck(code) {
+  if (decks[code]) return decks[code];
+  const r = await fetch("data/" + code + ".json");
+  const d = await r.json();
+  // words indexed by rank, for picking believable wrong answers
+  d.rankOf = new Map(d.words.map((w, i) => [w, i]));
+  return (decks[code] = d);
+}
+
+/* Due reviews first (oldest due first), then new cards in deck order (easy → hard). */
+function buildQueue() {
+  const p = P(), now = Date.now();
+  const due = Object.entries(p.c).filter(([, v]) => v[1] <= now)
+    .sort((a, b) => a[1][1] - b[1][1]).map(([id]) => +id);
+  const fresh = [];
+  for (let i = p.n; i < deck.items.length && fresh.length < ROUND; i++) if (!(i in p.c)) fresh.push(i);
+  return due.concat(fresh);
+}
+
+function counts() {
+  const p = P(), now = Date.now(); let due = 0, mastered = 0, seen = 0;
+  for (const [, v] of Object.entries(p.c)) { seen++; if (v[0] >= 4) mastered++; if (v[1] <= now) due++; }
+  return { due, mastered, seen, total: deck ? deck.items.length : 0 };
+}
+
+function renderStats() {
+  const c = counts();
+  $("stats").innerHTML = `<span>🔥 <b>${streak()}</b> day streak</span><span>today <b>${days[today()] || 0}</b> pts</span>` +
+    `<span><b>${c.due}</b> to review</span><span><b>${c.mastered}</b> mastered · ${c.seen}/${c.total} seen</span>`;
+  LS.set("summary", summary());
+}
+
+/* For Dune's Learn hub: a quick look at progress in every language (no deck loading needed). */
+function summary() {
+  const now = Date.now(), out = { streak: streak(), today: days[today()] || 0, langs: {} };
+  for (const [code, p] of Object.entries(prog)) {
+    let due = 0, mastered = 0, seen = 0;
+    for (const v of Object.values(p.c)) { seen++; if (v[0] >= 4) mastered++; if (v[1] <= now) due++; }
+    out.langs[code] = { due, mastered, seen };
+  }
+  return out;
+}
+window.clozeStats = () => JSON.stringify(summary());
+
+function speak(text) {
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = deck.voice; u.rate = 0.92;
+    const v = speechSynthesis.getVoices().find(v => v.lang && v.lang.toLowerCase().startsWith(deck.voice.slice(0, 2)));
+    if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  } catch {}
+}
+
+/* Three wrong answers that look plausible: words of similar commonness and length. */
+function distractors(word) {
+  const lw = word.toLowerCase(), r = deck.rankOf.get(lw) ?? deck.words.length / 2, pool = [];
+  for (let span = 60; pool.length < 3 && span < 4000; span *= 2) {
+    pool.length = 0;
+    for (let i = Math.max(0, r - span); i < Math.min(deck.words.length, r + span); i++) {
+      const w = deck.words[i];
+      if (w !== lw && Math.abs(w.length - lw.length) <= 3 && plain(w) !== plain(lw)) pool.push(w);
+    }
+  }
+  const pick = [];
+  while (pick.length < 3 && pool.length) pick.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  const cap = word[0] === word[0].toUpperCase() && word[0] !== word[0].toLowerCase();
+  return pick.map(w => cap ? w[0].toUpperCase() + w.slice(1) : w);
+}
+
+function startRound() {
+  queue = buildQueue();
+  round = queue.slice(0, ROUND); pos = 0; roundRight = 0;
+  if (!round.length) return renderDone(true);
+  next();
+}
+
+function next() {
+  answered = false;
+  if (pos >= round.length) return renderDone(false);
+  card = round[pos];
+  const [sent, en, start, word] = deck.items[card];
+  const level = (P().c[card] || [0])[0];
+  $("prog").style.width = (pos / round.length * 100) + "%";
+  const before = esc(sent.slice(0, start)), after = esc(sent.slice(start + word.length));
+  let body = `<div class="card">
+    <div class="level"><span>${level ? "Review · " + level * 25 + "% mastered" : "New"}</span><span>${pos + 1} / ${round.length}</span></div>
+    <div class="sent">${before}<span class="gap" id="gap">${"&nbsp;".repeat(Math.max(4, word.length))}</span>${after}</div>
+    <div class="en ${cfg.showEn ? "" : "hidden"}" id="en" title="Tap to show">${esc(en)}</div>`;
+  if (cfg.mode === "choice") {
+    const opts = shuffle([word, ...distractors(word)]);
+    body += `<div class="choices">${opts.map((o, i) => `<button type="button" data-w="${esc(o)}">${i + 1}. ${esc(o)}</button>`).join("")}</div>`;
+  } else {
+    body += `<div class="typing"><input id="answer" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" aria-label="Missing word"><button class="btn" id="check" type="button">Check</button></div>`;
+  }
+  body += `<div class="msg" id="msg"></div><div class="row">
+    <button class="ghost" id="say" type="button">🔊 Hear it</button>
+    <button class="ghost" id="hint" type="button">${cfg.mode === "type" ? "Hint" : "Skip"}</button>
+    <button class="ghost" id="toggleEn" type="button">${cfg.showEn ? "Hide" : "Show"} English</button></div>
+    ${cfg.mode === "choice" ? '<div class="keys">Keys: 1–4 to answer, Enter for next</div>' : ""}</div>`;
+  $("main").innerHTML = body;
+  $("en").onclick = () => $("en").classList.remove("hidden");
+  $("toggleEn").onclick = () => { cfg.showEn = !cfg.showEn; LS.set("cfg", cfg); $("en").classList.toggle("hidden", !cfg.showEn); $("toggleEn").textContent = (cfg.showEn ? "Hide" : "Show") + " English"; };
+  $("say").onclick = () => speak(sent);
+  if (cfg.mode === "choice") {
+    document.querySelectorAll(".choices button").forEach(b => b.onclick = () => answer(b.dataset.w, b));
+    $("hint").onclick = () => answer("", null);
+  } else {
+    const inp = $("answer");
+    inp.focus();
+    inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); answered ? next() : answer(inp.value, null); } };
+    $("check").onclick = () => answered ? next() : answer(inp.value, null);
+    $("hint").onclick = () => { inp.value = word.slice(0, Math.min(word.length - 1, inp.value.length + 1)); inp.focus(); };
+  }
+  if (cfg.listen) speak(sent);
+}
+
+function answer(given, btn) {
+  if (answered) return;
+  answered = true;
+  const [sent, , , word] = deck.items[card];
+  const exact = given.trim().toLowerCase() === word.toLowerCase();
+  const right = exact || (cfg.mode === "type" && given.trim() && plain(given) === plain(word));
+  const gap = $("gap"); gap.textContent = word; gap.classList.add(right ? "good" : "bad");
+  const msg = $("msg");
+  if (right) {
+    msg.className = "msg good";
+    msg.textContent = exact ? "✓ Right" : "✓ Right – watch the letters: " + accentHint(given, word);
+  } else {
+    msg.className = "msg bad";
+    msg.textContent = given.trim() ? "✗ It's “" + word + "”" + (cfg.mode === "type" ? " (you wrote “" + given.trim() + "”)" : "") : "The word is “" + word + "”";
+  }
+  if (btn) btn.classList.add(right ? "good" : "bad");
+  document.querySelectorAll(".choices button").forEach(b => { if (b.dataset.w === word) b.classList.add("good"); b.disabled = true; });
+  // Spaced repetition: right → next mastery step and a longer gap; wrong → back to the start, seen again this round.
+  const p = P(), cur = p.c[card] || [0, 0];
+  if (right) {
+    const lvl = Math.min(4, cur[0] + 1);
+    p.c[card] = [lvl, Date.now() + STEP_GAP[lvl]];
+    const pts = (cfg.mode === "type" ? 8 : 4) + (cfg.listen ? 2 : 0);
+    days[today()] = (days[today()] || 0) + pts;
+    roundRight++;
+  } else {
+    p.c[card] = [0, Date.now()];
+    if (round.length < ROUND * 2) round.push(card);   // try it again before the round ends
+  }
+  if (card >= p.n) { while (p.n in p.c) p.n++; }
+  LS.set("progress", prog); LS.set("days", days);
+  speak(sent);
+  renderStats();
+  const nx = document.createElement("button");
+  nx.className = "btn"; nx.type = "button"; nx.textContent = "Next →"; nx.id = "next";
+  nx.onclick = () => { pos++; next(); };
+  $("msg").after(nx); nx.style.marginTop = "14px"; nx.style.width = "100%";
+  if (cfg.mode === "type") $("check").textContent = "Next";
+  $("srcLink").innerHTML = ` · <a href="https://tatoeba.org/sentences/show/${deck.items[card][5]}" target="_blank" rel="noopener">this sentence</a>`;
+}
+
+function renderDone(empty) {
+  $("prog").style.width = "100%";
+  const c = counts();
+  $("main").innerHTML = `<div class="card done">
+    <h2>${empty ? "All caught up" : "Round done: " + roundRight + " of " + round.length}</h2>
+    <p class="en">${empty ? "Nothing to review in " + deck.name + " right now, and no new sentences left." : c.due + " to review · " + c.mastered + " mastered"}</p>
+    <button class="btn" id="again" type="button">${empty ? "Back" : "Another round"}</button></div>`;
+  $("again").onclick = startRound;
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+document.addEventListener("keydown", e => {
+  if (cfg.mode !== "choice" || e.target.tagName === "INPUT") return;
+  if (!answered && /^[1-4]$/.test(e.key)) document.querySelectorAll(".choices button")[+e.key - 1]?.click();
+  else if (answered && e.key === "Enter") $("next")?.click();
+});
+
+function setMode(m) { cfg.mode = m; LS.set("cfg", cfg); $("mChoice").classList.toggle("on", m === "choice"); $("mType").classList.toggle("on", m === "type"); if (deck) next(); }
+$("mChoice").onclick = () => setMode("choice");
+$("mType").onclick = () => setMode("type");
+$("mListen").onclick = () => { cfg.listen = !cfg.listen; LS.set("cfg", cfg); $("mListen").classList.toggle("on", cfg.listen); };
+$("lang").onchange = async e => { cfg.lang = e.target.value; LS.set("cfg", cfg); await open(); };
+
+async function open() {
+  $("main").innerHTML = '<div class="card"><div class="sent">Loading…</div></div>';
+  try { deck = await loadDeck(cfg.lang); }
+  catch { $("main").innerHTML = '<div class="card"><div class="sent">Couldn\'t load the sentences – check the connection.</div></div>'; return; }
+  renderStats(); startRound();
+}
+
+// A link like …/cloze/#lang=cym opens straight into that language (Dune's Learn hub uses this).
+const hl = new URLSearchParams(location.hash.slice(1)).get("lang");
+if (hl && ["pol", "cym", "deu", "nob"].includes(hl)) cfg.lang = hl;
+$("lang").value = cfg.lang;
+$("mChoice").classList.toggle("on", cfg.mode === "choice"); $("mType").classList.toggle("on", cfg.mode === "type"); $("mListen").classList.toggle("on", cfg.listen);
+speechSynthesis?.getVoices?.();
+open();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
