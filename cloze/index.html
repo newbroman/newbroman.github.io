@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Cloze – learn words in real sentences</title>
+<title>Tongues – learn words in real sentences</title>
 <meta name="description" content="Fill the missing word in real sentences – Polish, Welsh, German and Norwegian – with spaced repetition. Works offline.">
 <meta name="theme-color" content="#0b0b0a">
 <link rel="manifest" href="manifest.webmanifest">
@@ -96,7 +96,7 @@
 </head>
 <body>
 <header>
-  <h1>Cloze</h1>
+  <h1>Tongues</h1>
   <select id="lang" aria-label="Language">
     <option value="pol">Polish</option><option value="cym">Welsh</option><option value="deu">German</option><option value="nob">Norwegian</option>
   </select>
@@ -500,7 +500,7 @@ async function aiExplain(sent, en, word, lang, ai) {
   const d = AI_DEF[ai.provider] || AI_DEF.openrouter, name = deck.name;
   const prompt = `${name} sentence: "${sent}"\nEnglish: "${en}"\nThe learner had to fill in the word: "${word}".\n\nExplain for a learner in at most 120 words, in plain text: (1) what the sentence means, (2) why the missing word takes this form (case, tense, agreement${lang === "cym" ? ", mutation" : ""}), (3) one similar example sentence with its English translation.`;
   const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + ai.key };
-  if (ai.provider === "openrouter") { headers["X-Title"] = "Cloze"; }
+  if (ai.provider === "openrouter") { headers["X-Title"] = "Tongues"; }
   const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
   try {
     const r = await fetch(d.url, { method: "POST", headers, signal: ctl.signal, body: JSON.stringify({ model: ai.model.trim() || d.model,
