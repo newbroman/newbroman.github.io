@@ -18,8 +18,12 @@
   select, button, input { font: inherit; color: var(--fg); }
   select { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 0 6px; min-height: 40px; max-width: 28vw; font-size: 13px; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .seg button { background: none; border: 0; padding: 0 7px; min-height: 38px; color: var(--dim); font-size: 13px; white-space: nowrap; }
+  .seg button { background: none; border: 0; padding: 0 7px; min-height: 40px; color: var(--dim); font-size: 13px; white-space: nowrap; }
   .seg button.on { background: var(--card); color: var(--sand); }
+  .statrow { display: flex; align-items: flex-start; flex: none; padding-right: 8px; }
+  .statrow .stats { flex: 1; min-width: 0; }
+  #gear { margin-top: -4px; margin-bottom: -6px; font-size: 18px; }
+  #mListen, #mSpeak { min-width: 40px; }
   .stats { display: flex; gap: 4px 10px; padding: 0 12px 6px; color: var(--dim); font-size: 12px; line-height: 1.3; flex-wrap: wrap; flex: none; }
   .stats b { color: var(--fg); font-weight: 500; }
   .bar { height: 3px; background: var(--line); margin: 0 12px; border-radius: 2px; overflow: hidden; flex: none; }
@@ -66,6 +70,26 @@
   .speakbox .err { color: var(--bad); }
   .speaking .choices, .speaking .typing, .speaking .keys { display: none; }
   .keys { color: var(--dim); font-size: 11px; margin-top: 6px; }
+  .ic { min-width: 40px; padding: 0 6px; font-size: 16px; }
+  .ghost.on { color: var(--sand); border-color: var(--sand); }
+  .ghost.off { text-decoration: line-through; }
+  .badge { display: inline-block; border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; margin-left: 6px; font-size: 10px; line-height: 1.5; color: var(--sand); }
+  .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { background: var(--card); border: 1px solid var(--line); border-radius: 16px 16px 0 0; width: 100%; max-width: 640px; max-height: 80vh; max-height: 80dvh; overflow-y: auto; overscroll-behavior: contain; padding: 10px 14px 14px; }
+  .sheet h3 { margin: 0; font-size: 16px; font-weight: 500; }
+  .sheet h4 { margin: 12px 0 4px; font-size: 12px; font-weight: 500; color: var(--dim); text-transform: uppercase; letter-spacing: .6px; }
+  .sh-head { display: flex; align-items: center; justify-content: space-between; position: sticky; top: -10px; background: var(--card); padding: 2px 0 4px; }
+  .sheet p { margin: 4px 0; font-size: 14px; }
+  .sheet .dim { color: var(--dim); font-size: 12px; }
+  .sheet mark { background: none; color: var(--sand); border-bottom: 2px solid var(--sand); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; min-height: 40px; padding: 0 11px; border: 1px solid var(--line); border-radius: 10px; background: none; color: var(--fg); font-size: 15px; text-decoration: none; }
+  .chip.on, .chip.ans { border-color: var(--sand); color: var(--sand); }
+  .aibox { font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
+  .aibox.err { color: var(--bad); }
+  .sheet input.f, .sheet select.f { width: 100%; max-width: none; min-height: 40px; background: none; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; margin-top: 6px; font-size: 14px; }
+  .sheet select.f { background: var(--card); }
+  #toast { position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%); background: #26241d; border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; font-size: 13px; z-index: 30; max-width: 90vw; pointer-events: none; }
   @media (max-width: 400px) { .seg .lbl { display: none; } .seg button { min-width: 40px; } }
   @media (max-width: 380px) { .sent { font-size: 18px; } .choices button { font-size: 15px; } header h1 { font-size: 15px; } }
 </style>
@@ -81,7 +105,7 @@
   </span>
   <span class="seg"><button id="mListen" type="button" title="Hear the sentence before you answer" aria-label="Listen mode">🔊<span class="lbl"> Listen</span></button></span>
 </header>
-<div class="stats" id="stats"></div>
+<div class="statrow"><div class="stats" id="stats"></div><button id="gear" class="ghost ic" type="button" title="Settings: filters, level, favourites, AI" aria-label="Settings">⚙</button></div>
 <div class="bar"><i id="prog"></i></div>
 <main id="main"><div class="card"><div class="sent">Loading…</div></div></main>
 <footer>Sentences from <a href="https://tatoeba.org" target="_blank" rel="noopener">Tatoeba</a> (CC-BY 2.0 FR)<span id="srcLink"></span> · progress is kept on this device</footer>
@@ -161,43 +185,102 @@ async function loadDeck(code) {
   const d = await r.json();
   // words indexed by rank, for picking believable wrong answers
   d.rankOf = new Map(d.words.map((w, i) => [w, i]));
+  buildLevels(d);
   return (decks[code] = d);
 }
 
 /* Due reviews first (oldest due first), then new cards in deck order (easy → hard). */
+const F = () => ((cfg.f ||= {})[cfg.lang] ||= { lvl: "all", up: true, fav: false });
+const filtered = () => F().fav || F().lvl !== "all";
+function eligible(i) {   // not known, and passes the favourites / level filters
+  const p = P(), f = F();
+  if (p.k && p.k[i]) return false;
+  if (f.fav && !(p.f && p.f[i])) return false;
+  if (f.lvl !== "all") { const L = LEVELS.indexOf(f.lvl), l = deck.lv[i]; if (f.up ? l > L : l !== L) return false; }
+  return true;
+}
 function buildQueue() {
-  const p = P(), now = Date.now();
-  const due = Object.entries(p.c).filter(([, v]) => v[1] <= now)
+  const p = P(), now = Date.now(), f = F();
+  if (f.fav) {   // starred cards only: due and new first, then the rest by soonest due
+    return Object.keys(p.f || {}).map(Number).filter(eligible).sort((a, b) => ((p.c[a] || [0, 0])[1]) - ((p.c[b] || [0, 0])[1]));
+  }
+  const due = Object.entries(p.c).filter(([id, v]) => v[1] <= now && eligible(+id))
     .sort((a, b) => a[1][1] - b[1][1]).map(([id]) => +id);
   const fresh = [];
-  for (let i = p.n; i < deck.items.length && fresh.length < ROUND; i++) if (!(i in p.c)) fresh.push(i);
+  for (let i = filtered() ? 0 : p.n; i < deck.items.length && fresh.length < ROUND; i++) if (!(i in p.c) && eligible(i)) fresh.push(i);
   return due.concat(fresh);
 }
 
-function counts() {
-  const p = P(), now = Date.now(); let due = 0, mastered = 0, seen = 0;
-  for (const [, v] of Object.entries(p.c)) { seen++; if (v[0] >= 4) mastered++; if (v[1] <= now) due++; }
-  return { due, mastered, seen, total: deck ? deck.items.length : 0 };
+/* Known cards count as mastered and seen, and are never due. */
+function tally(p) {
+  const now = Date.now(), k = p.k || {}; let due = 0, mastered = Object.keys(k).length, seen = mastered;
+  for (const [id, v] of Object.entries(p.c)) { if (k[id]) continue; seen++; if (v[0] >= 4) mastered++; if (v[1] <= now) due++; }
+  return { due, mastered, seen };
+}
+function counts() { return Object.assign(tally(P()), { total: deck ? deck.items.length : 0 }); }
+
+/* ---- CEFR-style level estimate per sentence, from the deck's own word frequencies ---- */
+const LEVELS = ["A1", "A2", "B1", "B2", "C1"], LV_CUT = [.15, .35, .6, .85];   // share of each deck: 15/20/25/25/15 %
+const WORD_RE = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
+const tokens = s => (String(s).normalize("NFC").toLowerCase().replace(/[’‘`]/g, "'").match(WORD_RE)) || [];
+/* Difficulty = rank of the sentence's rarest word (rank 1 = commonest; equally-rare words share a rank)
+   + half the average word rank + length. Sentences are then cut into the five bands by difficulty. */
+function buildLevels(d) {
+  const T = d.items.map(it => tokens(it[0])), cnt = new Map();
+  T.forEach(t => t.forEach(w => cnt.set(w, (cnt.get(w) || 0) + 1)));
+  const first = new Map();
+  [...cnt.values()].sort((a, b) => b - a).forEach((c, i) => first.has(c) || first.set(c, i + 1));
+  const sc = T.map(t => {
+    if (!t.length) return 0;
+    const ls = t.map(w => Math.log(first.get(cnt.get(w))));
+    return Math.max(...ls) + .5 * ls.reduce((a, b) => a + b, 0) / ls.length + .12 * t.length;
+  });
+  const order = sc.map((_, i) => i).sort((a, b) => sc[a] - sc[b] || a - b);
+  d.lv = new Uint8Array(sc.length);
+  order.forEach((i, k) => { const f = k / order.length; d.lv[i] = f < LV_CUT[0] ? 0 : f < LV_CUT[1] ? 1 : f < LV_CUT[2] ? 2 : f < LV_CUT[3] ? 3 : 4; });
+  // spelling to look words up under: capitalised only if it usually is in mid-sentence (German nouns, names)
+  const cap = new Map(), low = new Map();
+  for (const it of d.items) for (const m of it[0].matchAll(WORD_RE)) {
+    if (!m.index) continue;
+    const lw = m[0].toLowerCase(); (m[0][0] !== lw[0] ? cap : low).set(lw, ((m[0][0] !== lw[0] ? cap : low).get(lw) || 0) + 1);
+  }
+  d.form = (w, atStart) => { const lw = w.toLowerCase(); return (cap.get(lw) || 0) > (low.get(lw) || 0) ? lw[0].toUpperCase() + lw.slice(1) : atStart ? lw : w; };
+}
+/* User's level: the highest band where they know (right twice in a row, or marked known) ≥60% of at least 5 cards seen there. */
+function estLevel(p, d) {
+  const seen = [0, 0, 0, 0, 0], got = [0, 0, 0, 0, 0], k = p.k || {};
+  for (const id of new Set([...Object.keys(p.c), ...Object.keys(k)])) {
+    const l = d.lv[id]; if (l == null) continue;
+    seen[l]++; if (k[id] || (p.c[id] && p.c[id][0] >= 2)) got[l]++;
+  }
+  let r = null; for (let l = 0; l < 5; l++) if (seen[l] >= 5 && got[l] / seen[l] >= .6) r = LEVELS[l];
+  return r;
 }
 
 function speakAvg() { const v = Object.values(P().s || {}); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; }
 
+function lvNow() {
+  const p = P(); if (!deck) return p.lv || null;
+  const l = estLevel(p, deck);
+  if ((p.lv || null) !== l) { p.lv = l; LS.set("progress", prog); }
+  return l;
+}
 function renderStats() {
   const c = counts();
   $("stats").innerHTML = `<span>🔥 <b>${streak()}</b> day streak</span><span>today <b>${days[today()] || 0}</b> pts</span>` +
     `<span><b>${c.due}</b> to review</span><span><b>${c.mastered}</b> mastered · ${c.seen}/${c.total} seen</span>` +
+    (lvNow() ? `<span>Level ≈ <b>${lvNow()}</b></span>` : "") +
     (speakAvg() != null ? `<span>🎤 <b>${speakAvg()}%</b> avg</span>` : "");
   LS.set("summary", summary());
 }
 
 /* For Dune's Learn hub: a quick look at progress in every language (no deck loading needed). */
 function summary() {
-  const now = Date.now(), out = { streak: streak(), today: days[today()] || 0, langs: {} };
+  const out = { streak: streak(), today: days[today()] || 0, langs: {} };
   for (const [code, p] of Object.entries(prog)) {
-    let due = 0, mastered = 0, seen = 0;
-    for (const v of Object.values(p.c)) { seen++; if (v[0] >= 4) mastered++; if (v[1] <= now) due++; }
+    const { due, mastered, seen } = tally(p);
     const sv = Object.values(p.s || {});
-    out.langs[code] = { due, mastered, seen, speakAvg: sv.length ? Math.round(sv.reduce((a, b) => a + b, 0) / sv.length) : null, speakN: sv.length };
+    out.langs[code] = { due, mastered, seen, speakAvg: sv.length ? Math.round(sv.reduce((a, b) => a + b, 0) / sv.length) : null, speakN: sv.length, level: p.lv || null };
   }
   const all = Object.values(out.langs).reduce((a, l) => (a.n += l.speakN, a.t += (l.speakAvg || 0) * l.speakN, a), { n: 0, t: 0 });
   out.speakAvg = all.n ? Math.round(all.t / all.n) : null; out.speakN = all.n;
@@ -205,11 +288,11 @@ function summary() {
 }
 window.clozeStats = () => JSON.stringify(summary());
 
-function speak(text) {
+function speak(text, rate = 0.92) {
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = deck.voice; u.rate = 0.92;
+    u.lang = deck.voice; u.rate = rate;
     const v = speechSynthesis.getVoices().find(v => v.lang && v.lang.toLowerCase().startsWith(deck.voice.slice(0, 2)));
     if (v) u.voice = v;
     speechSynthesis.speak(u);
@@ -241,6 +324,7 @@ function startRound() {
 
 function next() {
   answered = false;
+  while (pos < round.length && P().k && P().k[round[pos]]) pos++;   // known meanwhile (e.g. a retry of a card marked known)
   if (pos >= round.length) return renderDone(false);
   card = round[pos];
   const [sent, en, start, word] = deck.items[card];
@@ -248,7 +332,7 @@ function next() {
   $("prog").style.width = (pos / round.length * 100) + "%";
   const before = esc(sent.slice(0, start)), after = esc(sent.slice(start + word.length));
   let body = `<div class="card">
-    <div class="level"><span>${level ? "Review · " + level * 25 + "% mastered" : "New"}</span><span>${pos + 1} / ${round.length}</span></div>
+    <div class="level"><span>${level ? "Review · " + level * 25 + "% mastered" : "New"}<span class="badge" id="lvbadge" title="Estimated level (CEFR)">${LEVELS[deck.lv[card]]}</span></span><span>${pos + 1} / ${round.length}</span></div>
     <div class="sent">${cfg.mode === "speak" ? esc(sent) : before + '<span class="gap" id="gap">' + "&nbsp;".repeat(Math.max(4, word.length)) + "</span>" + after}</div>
     <div class="en ${cfg.showEn ? "" : "hidden"}" id="en" title="Tap to show">${esc(en)}</div>`;
   if (cfg.mode === "speak") {
@@ -259,17 +343,23 @@ function next() {
   } else {
     body += `<div class="typing"><input id="answer" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" aria-label="Missing word"><button class="btn" id="check" type="button">Check</button></div>`;
   }
-  body += `<div class="speakbox" id="speakbox" aria-live="polite"></div><div class="msg" id="msg"></div>${cfg.mode === "speak" ? '<div class="actions" id="actions"></div>' : ""}<div class="row">
-    <button class="ghost" id="say" type="button">🔊 Hear it</button>
-    ${cfg.mode === "speak" ? "" : `<button class="ghost" id="hint" type="button">${cfg.mode === "type" ? "Hint" : "Skip"}</button>`}
-    <button class="ghost" id="toggleEn" type="button">${cfg.showEn ? "Hide" : "Show"} English</button></div>
+  body += `<div class="speakbox" id="speakbox" aria-live="polite"></div><div class="msg" id="msg"></div>${cfg.mode === "speak" ? '<div class="actions" id="actions"></div>' : ""}<div class="row" id="brow">
+    <button class="ghost ic" id="say" type="button" title="Hear it" aria-label="Hear it">🔊</button>
+    <button class="ghost ic" id="slow" type="button" title="Hear it slowly" aria-label="Hear it slowly">🐢</button>
+    <button class="ghost ic" id="fav" type="button"></button>
+    <button class="ghost ic" id="known" type="button"></button>
+    <button class="ghost" id="hint" type="button">${cfg.mode === "speak" ? "Explain" : cfg.mode === "type" ? "Hint" : "Skip"}</button>
+    <button class="ghost ic ${cfg.showEn ? "" : "off"}" id="toggleEn" type="button" title="Show / hide English" aria-label="Show or hide English">EN</button></div>
     ${cfg.mode === "choice" ? '<div class="keys">Keys: 1–4 to answer, Enter for next</div>' : ""}</div>`;
   $("main").innerHTML = body;
   $("en").onclick = () => $("en").classList.remove("hidden");
-  $("toggleEn").onclick = () => { cfg.showEn = !cfg.showEn; LS.set("cfg", cfg); $("en").classList.toggle("hidden", !cfg.showEn); $("toggleEn").textContent = (cfg.showEn ? "Hide" : "Show") + " English"; };
+  $("toggleEn").onclick = () => { cfg.showEn = !cfg.showEn; LS.set("cfg", cfg); $("en").classList.toggle("hidden", !cfg.showEn); $("toggleEn").classList.toggle("off", !cfg.showEn); };
   $("say").onclick = () => speak(sent);
+  $("slow").onclick = () => speak(sent, 0.6);
+  $("fav").onclick = toggleFav; $("known").onclick = toggleKnown; paintMarks();
   stopRec(); spoken = false; bestNow = null;
   if (cfg.mode === "speak") {
+    $("hint").onclick = openExplain;
     $("msg").remove(); renderActions(true);
   } else if (cfg.mode === "choice") {
     document.querySelectorAll(".choices button").forEach(b => b.onclick = () => answer(b.dataset.w, b));
@@ -277,8 +367,8 @@ function next() {
   } else {
     const inp = $("answer");
     inp.focus();
-    inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); answered ? next() : answer(inp.value, null); } };
-    $("check").onclick = () => answered ? next() : answer(inp.value, null);
+    inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); answered ? (pos++, next()) : answer(inp.value, null); } };
+    $("check").onclick = () => answered ? (pos++, next()) : answer(inp.value, null);
     $("hint").onclick = () => { inp.value = word.slice(0, Math.min(word.length - 1, inp.value.length + 1)); inp.focus(); };
   }
   if (cfg.listen) speak(sent);
@@ -317,11 +407,148 @@ function answer(given, btn) {
   LS.set("progress", prog); LS.set("days", days);
   speak(sent);
   renderStats();
+  afterAnswer();
+}
+function afterAnswer() {
   const ac = document.createElement("div"); ac.className = "actions"; ac.id = "actions"; $("msg").after(ac);
   renderActions(false);
   if (cfg.mode === "type") $("check").textContent = "Next";
+  const h = $("hint"); if (h) { h.textContent = "Explain"; h.onclick = openExplain; }
   $("srcLink").innerHTML = ` · <a href="https://tatoeba.org/sentences/show/${deck.items[card][5]}" target="_blank" rel="noopener">this sentence</a>`;
 }
+/* Show the answer without marking it right or wrong (used when a card is marked known before answering). */
+function reveal() {
+  answered = true;
+  const word = deck.items[card][3], g = $("gap"); g.textContent = word; g.classList.add("good");
+  document.querySelectorAll(".choices button").forEach(b => { if (b.dataset.w === word) b.classList.add("good"); b.disabled = true; });
+  const inp = $("answer"); if (inp) inp.value = word;
+  afterAnswer();
+}
+
+/* ---- favourites and known ---- */
+let toastT = 0;
+function toast(t) {
+  let e = $("toast"); if (!e) { e = document.createElement("div"); e.id = "toast"; e.setAttribute("role", "status"); document.body.appendChild(e); }
+  e.textContent = t; e.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { e.hidden = true; }, 2600);
+}
+function paintMarks() {
+  const p = P(), f = !!(p.f && p.f[card]), k = !!(p.k && p.k[card]);
+  const fb = $("fav"), kb = $("known"); if (!fb) return;
+  fb.textContent = f ? "★" : "☆"; fb.classList.toggle("on", f);
+  fb.title = f ? "Remove from favourites" : "Add to favourites"; fb.setAttribute("aria-label", fb.title);
+  kb.textContent = k ? "↩" : "✓"; kb.classList.toggle("on", k);
+  kb.title = k ? "Undo: not known" : "Known: don't show this card again"; kb.setAttribute("aria-label", kb.title);
+}
+function toggleFav() {
+  const p = P(); p.f ||= {};
+  if (p.f[card]) { delete p.f[card]; toast("Removed from favourites"); } else { p.f[card] = 1; toast("★ Added to favourites"); }
+  LS.set("progress", prog); paintMarks();
+}
+function toggleKnown() {
+  const p = P(); p.k ||= {};
+  if (p.k[card]) { delete p.k[card]; toast("Undone – this card will come back"); }
+  else {
+    p.k[card] = 1; toast("✓ Known – won't be asked again. Tap ↩ to undo");
+    if (!answered && cfg.mode !== "speak") reveal();
+  }
+  LS.set("progress", prog); paintMarks(); renderStats();
+}
+
+/* ---- sheets: Explain and Settings (overlays with their own scroll) ---- */
+let sheetClose = null;
+function closeSheet() { const b = $("sheetbg"); if (b) b.remove(); const f = sheetClose; sheetClose = null; if (f) f(); }
+function openSheet(title, inner, onClose) {
+  closeSheet(); sheetClose = onClose || null;
+  const bg = document.createElement("div"); bg.className = "sheet-bg"; bg.id = "sheetbg";
+  bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="sh-head"><h3>${esc(title)}</h3><button class="ghost ic" id="shclose" type="button" aria-label="Close">✕</button></div>${inner}</div>`;
+  bg.onclick = e => { if (e.target === bg) closeSheet(); };
+  document.body.appendChild(bg); $("shclose").onclick = closeSheet;
+  return bg.querySelector(".sheet");
+}
+
+const WIKI = { pol: "Polish", cym: "Welsh", deu: "German", nob: "Norwegian_Bokmål" };
+const AI_DEF = { openrouter: { url: "https://openrouter.ai/api/v1/chat/completions", model: "openai/gpt-5.4-mini", name: "OpenRouter" },
+                 openai: { url: "https://api.openai.com/v1/chat/completions", model: "gpt-5.4-mini", name: "OpenAI" } };
+const AI = () => Object.assign({ provider: "openrouter", key: "", model: "" }, LS.get("ai", {}));
+const fmtAI = t => esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+
+function openExplain() {
+  const [sent, en, start, word, , tid] = deck.items[card], lang = cfg.lang, myCard = card;
+  let chips = "";
+  for (const m of sent.matchAll(WORD_RE)) {
+    const href = "https://en.wiktionary.org/wiki/" + encodeURIComponent(deck.form(m[0], m.index === 0)) + "#" + WIKI[lang];
+    chips += `<a class="chip${m.index === start ? " ans" : ""}" href="${href}" target="_blank" rel="noopener">${esc(m[0])}</a>`;
+  }
+  const ai = AI();
+  openSheet("Explain", `<p style="font-size:18px;line-height:1.4">${esc(sent.slice(0, start))}<mark>${esc(word)}</mark>${esc(sent.slice(start + word.length))}</p>
+    <p style="color:var(--dim)">${esc(en)}</p>
+    <h4>Look up a word (Wiktionary)</h4><div class="chips" id="wchips">${chips}</div>
+    <h4>AI explanation</h4><div class="aibox" id="aibox"></div>`);
+  const box = $("aibox"), ask = (force) => {
+    const ck = lang + ":" + tid, cache = LS.get("explain", {});
+    if (!ai.key) { box.innerHTML = `<span class="dim">Add an API key in <a href="#" id="toset" style="color:var(--sand)">⚙ settings</a> for a short AI explanation. The key stays on this device.</span>`; $("toset").onclick = e => { e.preventDefault(); openSettings(); }; return; }
+    if (cache[ck] && !force) { box.innerHTML = fmtAI(cache[ck]); return; }
+    box.textContent = "Asking " + AI_DEF[ai.provider].name + "…";
+    aiExplain(sent, en, word, lang, ai).then(t => {
+      const c = LS.get("explain", {}); c[ck] = t; const ks = Object.keys(c); if (ks.length > 300) delete c[ks[0]]; LS.set("explain", c);
+      if ($("aibox") === box) box.innerHTML = fmtAI(t);
+    }).catch(e => { if ($("aibox") === box) { box.className = "aibox err"; box.textContent = "Couldn't get an explanation: " + (e.message || e).toString().slice(0, 140); } });
+  };
+  ask(false);
+}
+async function aiExplain(sent, en, word, lang, ai) {
+  const d = AI_DEF[ai.provider] || AI_DEF.openrouter, name = deck.name;
+  const prompt = `${name} sentence: "${sent}"\nEnglish: "${en}"\nThe learner had to fill in the word: "${word}".\n\nExplain for a learner in at most 120 words, in plain text: (1) what the sentence means, (2) why the missing word takes this form (case, tense, agreement${lang === "cym" ? ", mutation" : ""}), (3) one similar example sentence with its English translation.`;
+  const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + ai.key };
+  if (ai.provider === "openrouter") { headers["X-Title"] = "Cloze"; }
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const r = await fetch(d.url, { method: "POST", headers, signal: ctl.signal, body: JSON.stringify({ model: ai.model.trim() || d.model,
+      messages: [{ role: "system", content: "You are a concise, friendly language tutor. Never exceed 120 words." }, { role: "user", content: prompt }] }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(r.status + " " + ((j.error && (j.error.message || j.error)) || r.statusText || "request failed"));
+    const t = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+    if (!t) throw new Error("empty reply");
+    return String(t).trim();
+  } catch (e) { throw e.name === "AbortError" ? new Error("timed out") : e; }
+  finally { clearTimeout(to); }
+}
+
+function openSettings() {
+  const f = F(), ai = AI(), p = P(); let dirty = false;
+  const nFav = Object.keys(p.f || {}).length, nKnown = Object.keys(p.k || {}).length;
+  const sh = openSheet("Settings · " + (deck ? deck.name : ""), `
+    <h4>Practise</h4>
+    <div class="chips" id="fchips"><button class="chip" type="button" data-fav="0">All cards</button><button class="chip" type="button" data-fav="1">★ Favourites (${nFav})</button></div>
+    <h4>Level (estimated CEFR)</h4>
+    <div class="chips" id="lchips">${["all", ...LEVELS].map(l => `<button class="chip" type="button" data-l="${l}">${l === "all" ? "All" : l}</button>`).join("")}</div>
+    <div class="chips" id="mchips" style="margin-top:6px"><button class="chip" type="button" data-up="1">Up to this level</button><button class="chip" type="button" data-up="0">Only this level</button></div>
+    <h4>Known cards</h4>
+    <div class="chips"><span class="dim" style="align-self:center" id="nk">${nKnown} known</span><button class="chip" type="button" id="clrk">Clear known</button></div>
+    <h4>AI explanations (optional)</h4>
+    <select class="f" id="aip" aria-label="AI provider"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option></select>
+    <input class="f" id="aik" type="password" autocomplete="off" spellcheck="false" placeholder="API key" aria-label="API key">
+    <input class="f" id="aim" type="text" autocomplete="off" spellcheck="false" aria-label="Model">
+    <p class="dim">The key is stored only in this browser (localStorage). It is sent only to the provider you pick, and only when you tap Explain.</p>`,
+    () => { if (dirty && deck) startRound(); });
+  const paint = () => {
+    sh.querySelectorAll("[data-fav]").forEach(b => b.classList.toggle("on", (b.dataset.fav === "1") === f.fav));
+    sh.querySelectorAll("[data-l]").forEach(b => b.classList.toggle("on", b.dataset.l === f.lvl));
+    sh.querySelectorAll("[data-up]").forEach(b => b.classList.toggle("on", (b.dataset.up === "1") === f.up));
+    $("mchips").style.display = f.lvl === "all" ? "none" : "";
+  };
+  const save = () => { LS.set("cfg", cfg); dirty = true; paint(); };
+  sh.querySelectorAll("[data-fav]").forEach(b => b.onclick = () => { f.fav = b.dataset.fav === "1"; save(); });
+  sh.querySelectorAll("[data-l]").forEach(b => b.onclick = () => { f.lvl = b.dataset.l; save(); });
+  sh.querySelectorAll("[data-up]").forEach(b => b.onclick = () => { f.up = b.dataset.up === "1"; save(); });
+  $("clrk").onclick = () => { P().k = {}; LS.set("progress", prog); $("nk").textContent = "0 known"; dirty = true; renderStats(); };
+  $("aip").value = ai.provider; $("aik").value = ai.key; $("aim").value = ai.model;
+  const aiSave = () => { const m = $("aim"); m.placeholder = "Model (default " + AI_DEF[$("aip").value].model + ")"; LS.set("ai", { provider: $("aip").value, key: $("aik").value.trim(), model: m.value.trim() }); };
+  $("aip").onchange = $("aik").oninput = $("aim").oninput = aiSave; aiSave();
+  paint();
+}
+
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("sheetbg")) closeSheet(); });
 
 /* ---- Say it: speech recognition ---- */
 function stopRec() { if (rec) { const r = rec; rec = null; r.onresult = r.onerror = r.onend = null; try { r.abort ? r.abort() : r.stop(); } catch {} } }
@@ -402,19 +629,21 @@ function showScore(res) {
 
 function renderDone(empty) {
   $("prog").style.width = "100%";
-  const c = counts();
+  const c = counts(), f = F();
+  const why = !empty ? "" : f.fav && !Object.keys(P().f || {}).filter(eligible).length ? "No starred cards yet – tap ☆ on a card to add it, or switch the filter off in ⚙."
+    : filtered() ? "Nothing to practise with the current filter (⚙). Try another level or turn it off." : "Nothing to review in " + deck.name + " right now, and no new sentences left.";
   $("main").innerHTML = `<div class="card done">
-    <h2>${empty ? "All caught up" : "Round done: " + roundRight + " of " + round.length}</h2>
-    <p class="en">${empty ? "Nothing to review in " + deck.name + " right now, and no new sentences left." : c.due + " to review · " + c.mastered + " mastered"}</p>
-    <button class="btn" id="again" type="button">${empty ? "Back" : "Another round"}</button></div>`;
-  $("again").onclick = startRound;
+    <h2>${empty ? (filtered() ? "Nothing here" : "All caught up") : "Round done: " + roundRight + " of " + round.length}</h2>
+    <p class="en">${empty ? why : c.due + " to review · " + c.mastered + " mastered"}</p>
+    <button class="btn" id="again" type="button">${empty ? (filtered() ? "Change filter" : "Back") : "Another round"}</button></div>`;
+  $("again").onclick = empty && filtered() ? openSettings : startRound;
 }
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
 document.addEventListener("keydown", e => {
-  if (cfg.mode !== "choice" || e.target.tagName === "INPUT") return;
+  if (cfg.mode !== "choice" || e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || $("sheetbg")) return;
   if (!answered && /^[1-4]$/.test(e.key)) document.querySelectorAll(".choices button")[+e.key - 1]?.click();
   else if (answered && e.key === "Enter") $("next")?.click();
 });
@@ -423,8 +652,9 @@ function setMode(m) { cfg.mode = m; LS.set("cfg", cfg); $("mChoice").classList.t
 $("mSpeak").onclick = () => setMode("speak");
 $("mChoice").onclick = () => setMode("choice");
 $("mType").onclick = () => setMode("type");
+$("gear").onclick = () => deck && openSettings();
 $("mListen").onclick = () => { cfg.listen = !cfg.listen; LS.set("cfg", cfg); $("mListen").classList.toggle("on", cfg.listen); };
-$("lang").onchange = async e => { cfg.lang = e.target.value; LS.set("cfg", cfg); await open(); };
+$("lang").onchange = async e => { closeSheet(); cfg.lang = e.target.value; LS.set("cfg", cfg); await open(); };
 
 async function open() {
   $("main").innerHTML = '<div class="card"><div class="sent">Loading…</div></div>';
