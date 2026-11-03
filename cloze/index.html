@@ -90,6 +90,17 @@
   .sheet input.f, .sheet select.f { width: 100%; max-width: none; min-height: 40px; background: none; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; margin-top: 6px; font-size: 14px; }
   .sheet select.f { background: var(--card); }
   #toast { position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%); background: #26241d; border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; font-size: 13px; z-index: 30; max-width: 90vw; pointer-events: none; }
+  #hfree { margin-top: -4px; margin-bottom: -6px; margin-right: 6px; font-size: 18px; color: var(--sand); border-color: var(--sand); }
+  #hfree.on { background: var(--sand); color: #111; }
+  .hf .hfst { font-size: 22px; font-weight: 600; color: var(--sand); line-height: 1.3; min-height: 1.3em; margin-top: 4px; }
+  .hf .hfst.good { color: var(--good); } .hf .hfst.bad { color: var(--bad); }
+  .hf .hflab { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .6px; margin-top: 12px; }
+  .hf .hfen { font-size: 19px; line-height: 1.35; }
+  .hf .hfsent { font-size: 19px; line-height: 1.35; color: var(--fg); }
+  .hf .hfsent.veil { color: var(--dim); }
+  .hf .hfnote { font-size: 12px; color: var(--dim); margin-top: auto; padding-top: 8px; }
+  .hf .hfnote.err { color: var(--bad); }
+  .hfstop { width: 100%; min-height: 64px; margin-top: 8px; border: 0; border-radius: 14px; background: var(--bad); color: #111; font-size: 20px; font-weight: 700; flex: none; }
   @media (max-width: 400px) { .seg .lbl { display: none; } .seg button { min-width: 40px; } }
   @media (max-width: 380px) { .sent { font-size: 18px; } .choices button { font-size: 15px; } header h1 { font-size: 15px; } }
 </style>
@@ -105,7 +116,7 @@
   </span>
   <span class="seg"><button id="mListen" type="button" title="Hear the sentence before you answer" aria-label="Listen mode">🔊<span class="lbl"> Listen</span></button></span>
 </header>
-<div class="statrow"><div class="stats" id="stats"></div><button id="gear" class="ghost ic" type="button" title="Settings: filters, level, favourites, AI" aria-label="Settings">⚙</button></div>
+<div class="statrow"><div class="stats" id="stats"></div><button id="hfree" class="ghost ic" type="button" title="Hands-free: hear the English, say the sentence, hear if it's right – no tapping" aria-label="Hands-free practice">🎧</button><button id="gear" class="ghost ic" type="button" title="Settings: filters, level, favourites, AI" aria-label="Settings">⚙</button></div>
 <div class="bar"><i id="prog"></i></div>
 <main id="main"><div class="card"><div class="sent">Loading…</div></div></main>
 <footer>Sentences from <a href="https://tatoeba.org" target="_blank" rel="noopener">Tatoeba</a> (CC-BY 2.0 FR)<span id="srcLink"></span> · progress is kept on this device</footer>
@@ -118,7 +129,7 @@ const DAY = 864e5, ROUND = 10;
 const STEP_GAP = [0, 1, 10, 30, 180].map(d => d * DAY);
 const LS = { get(k, d) { try { const v = localStorage.getItem("cloze." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
              set(k, v) { try { localStorage.setItem("cloze." + k, JSON.stringify(v)); } catch {} } };
-const cfg = Object.assign({ lang: "pol", mode: "choice", listen: false, showEn: true }, LS.get("cfg", {}));
+const cfg = Object.assign({ lang: "pol", mode: "choice", listen: false, showEn: true, hfEn: true, hfPause: "normal" }, LS.get("cfg", {}));
 const prog = LS.get("progress", {});      // { lang: { c: { id: [level, due] }, n: nextNewIndex } }
 const days = LS.get("days", {});          // { "2026-10-31": points }
 const decks = {};
@@ -337,7 +348,7 @@ function startRound() {
   next();
 }
 
-function next() {
+function next(quiet) {
   answered = false;
   while (pos < round.length && P().k && P().k[round[pos]]) pos++;   // known meanwhile (e.g. a retry of a card marked known)
   if (pos >= round.length) return renderDone(false);
@@ -386,7 +397,7 @@ function next() {
     $("check").onclick = () => answered ? (pos++, next()) : answer(inp.value, null);
     $("hint").onclick = () => { inp.value = word.slice(0, Math.min(word.length - 1, inp.value.length + 1)); inp.focus(); };
   }
-  if (cfg.listen) speak(sent);
+  if (cfg.listen && !quiet) speak(sent);
 }
 
 function answer(given, btn) {
@@ -406,12 +417,17 @@ function answer(given, btn) {
   }
   if (btn) btn.classList.add(right ? "good" : "bad");
   document.querySelectorAll(".choices button").forEach(b => { if (b.dataset.w === word) b.classList.add("good"); b.disabled = true; });
-  // Spaced repetition: right → next mastery step and a longer gap; wrong → back to the start, seen again this round.
+  record(right, (cfg.mode === "type" ? 8 : 4) + (cfg.listen ? 2 : 0));
+  speak(sent);
+  renderStats();
+  afterAnswer();
+}
+/* Spaced repetition: right → next mastery step and a longer gap; wrong → back to the start, seen again this round. */
+function record(right, pts) {
   const p = P(), cur = p.c[card] || [0, 0];
   if (right) {
     const lvl = Math.min(4, cur[0] + 1);
     p.c[card] = [lvl, Date.now() + STEP_GAP[lvl]];
-    const pts = (cfg.mode === "type" ? 8 : 4) + (cfg.listen ? 2 : 0);
     days[today()] = (days[today()] || 0) + pts;
     roundRight++;
   } else {
@@ -420,9 +436,6 @@ function answer(given, btn) {
   }
   if (card >= p.n) { while (p.n in p.c) p.n++; }
   LS.set("progress", prog); LS.set("days", days);
-  speak(sent);
-  renderStats();
-  afterAnswer();
 }
 function afterAnswer() {
   const ac = document.createElement("div"); ac.className = "actions"; ac.id = "actions"; $("msg").after(ac);
@@ -540,18 +553,26 @@ function openSettings() {
     <div class="chips" id="mchips" style="margin-top:6px"><button class="chip" type="button" data-up="1">Up to this level</button><button class="chip" type="button" data-up="0">Only this level</button></div>
     <h4>Known cards</h4>
     <div class="chips"><span class="dim" style="align-self:center" id="nk">${nKnown} known</span><button class="chip" type="button" id="clrk">Clear known</button></div>
+    <h4>🎧 Hands-free</h4>
+    <p class="dim">Tap 🎧 at the top to practise without touching the phone: hear the English, say the whole sentence in ${deck ? esc(deck.name) : "the language"}, hear whether it was right and the correct sentence, then the next card. Say “skip”, “repeat” or “stop” at any time it's listening.${SR ? "" : " Speech recognition isn't available here, so it runs listen-only (no scoring)."}</p>
+    <div class="chips"><button class="chip" type="button" id="hfen">Say the English first</button></div>
+    <div class="chips" id="hfp" style="margin-top:6px">${["short", "normal", "long"].map(k => `<button class="chip" type="button" data-hp="${k}">${k[0].toUpperCase() + k.slice(1)} pauses</button>`).join("")}</div>
     <h4>AI explanations (optional)</h4>
     <select class="f" id="aip" aria-label="AI provider"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option></select>
     <input class="f" id="aik" type="password" autocomplete="off" spellcheck="false" placeholder="API key" aria-label="API key">
     <input class="f" id="aim" type="text" autocomplete="off" spellcheck="false" aria-label="Model">
     <p class="dim">The key is stored only in this browser (localStorage). It is sent only to the provider you pick, and only when you tap Explain.</p>`,
-    () => { if (dirty && deck) startRound(); });
+    () => { if (dirty && deck) { hfStop(false); startRound(); } });
   const paint = () => {
     sh.querySelectorAll("[data-fav]").forEach(b => b.classList.toggle("on", (b.dataset.fav === "1") === f.fav));
     sh.querySelectorAll("[data-l]").forEach(b => b.classList.toggle("on", b.dataset.l === f.lvl));
     sh.querySelectorAll("[data-up]").forEach(b => b.classList.toggle("on", (b.dataset.up === "1") === f.up));
     $("mchips").style.display = f.lvl === "all" ? "none" : "";
+    $("hfen").classList.toggle("on", cfg.hfEn !== false);
+    sh.querySelectorAll("[data-hp]").forEach(b => b.classList.toggle("on", b.dataset.hp === (cfg.hfPause || "normal")));
   };
+  $("hfen").onclick = () => { cfg.hfEn = cfg.hfEn === false; LS.set("cfg", cfg); paint(); };
+  sh.querySelectorAll("[data-hp]").forEach(b => b.onclick = () => { cfg.hfPause = b.dataset.hp; LS.set("cfg", cfg); paint(); });
   const save = () => { LS.set("cfg", cfg); dirty = true; paint(); };
   sh.querySelectorAll("[data-fav]").forEach(b => b.onclick = () => { f.fav = b.dataset.fav === "1"; save(); });
   sh.querySelectorAll("[data-l]").forEach(b => b.onclick = () => { f.lvl = b.dataset.l; save(); });
@@ -636,11 +657,207 @@ function showScore(res) {
     if (cfg.mode === "speak") roundRight++;
   }
   const best = p.s[card];
-  const html = res.words.map((w, i) => `<span class="${res.marks[i] === 1 ? "ok" : res.marks[i] > 0 ? "near" : "miss"}">${esc(w)}</span>`).join(" ");
+  const html = marksHtml(res);
   $("speakbox").innerHTML = `<div class="score" id="score">${res.score}% · ${speakLabel(res.score)} <small>best ${best}%</small></div>` +
     `<div class="tw" id="tw">${html}</div><div class="said" id="said">You said: ${esc(res.said || "…")}</div>`;
   renderStats();
 }
+
+const marksHtml = res => res.words.map((w, i) => `<span class="${res.marks[i] === 1 ? "ok" : res.marks[i] > 0 ? "near" : "miss"}">${esc(w)}</span>`).join(" ");
+
+/* ---- Hands-free: English prompt → you say the sentence → scored → hear the answer → next card, no tapping ----
+   Speech and listening never overlap: each step waits for the utterance's end (with a safety timeout,
+   since Chrome on Android sometimes never fires onend) before the microphone opens. */
+const HALT = { halt: 1 }, PAUSE = { pause: 1 };
+const HF_PAUSE = { short: 0.5, normal: 1, long: 1.8 };
+const HF_CMD = { stop: "stop", skip: "skip", next: "skip", repeat: "repeat", again: "repeat" };
+let hf = null;   // the running session: { lo: listen-only, paused, rec, endRec, kick, resume, wl, errs }
+const hfGap = ms => ms * (HF_PAUSE[cfg.hfPause] || 1);
+const normLang = l => String(l || "").replace("_", "-").toLowerCase();
+function pickVoice(lang) {
+  const vs = speechSynthesis.getVoices(), L = normLang(lang);
+  return vs.find(v => normLang(v.lang) === L) || vs.find(v => normLang(v.lang).startsWith(L.slice(0, 2)));
+}
+function utter(text, lang, rate = 0.92) {
+  return new Promise(res => {
+    let done = false;
+    const fin = () => { if (!done) { done = true; clearTimeout(t); res(); } };
+    const t = setTimeout(fin, 2500 + text.length * 110 / rate);   // safety net if onend never comes
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang; u.rate = rate;
+      const v = pickVoice(lang); if (v) u.voice = v;
+      u.onend = u.onerror = fin;
+      if (hf) hf.u = u;   // hold a reference: Chrome can drop onend for garbage-collected utterances
+      speechSynthesis.speak(u);
+    } catch { fin(); }
+  });
+}
+function hfChk(h) { if (hf !== h) throw HALT; if (h.paused) throw PAUSE; }
+async function hfSay(h, text, lang, rate) { hfChk(h); await utter(text, lang, rate); hfChk(h); }
+async function hfSleep(h, ms) { hfChk(h); await new Promise(r => { const t = setTimeout(r, ms); h.kick = () => { clearTimeout(t); r(); }; }); h.kick = null; hfChk(h); }
+function hfListen(h, ms) {
+  return new Promise(res => {
+    let alts = [], err = null, done = false, t2 = 0;
+    const r = h.rec = new SR();
+    try { r.lang = deck.voice; r.interimResults = false; r.continuous = false; r.maxAlternatives = 3; } catch {}
+    const fin = () => {
+      if (done) return; done = true; clearTimeout(t1); clearTimeout(t2);
+      if (h.rec === r) h.rec = null; h.endRec = null;
+      r.onresult = r.onerror = r.onend = null; try { r.abort(); } catch {}
+      res({ alts, err });
+    };
+    r.onresult = ev => {
+      const R = Array.from(ev.results || []).filter(x => x && x.length); alts = [];
+      for (let k = 0; k < 3; k++) { if (!R.some(x => x.length > k)) break; alts.push(R.map(x => x[Math.min(k, x.length - 1)].transcript).join(" ")); }
+      alts = alts.filter(a => a.trim());
+      if (R.length && R[R.length - 1].isFinal) fin();
+    };
+    r.onerror = ev => { err = (ev && ev.error) || "unknown"; };
+    r.onend = fin;
+    h.endRec = fin;
+    const t1 = setTimeout(() => { try { r.stop(); } catch {} t2 = setTimeout(fin, 2000); }, ms);
+    try { r.start(); } catch { err = "start"; fin(); }
+  });
+}
+function hfCmd(alts, sent) {
+  if (sWords(sent).length <= 1) return null;
+  for (const a of alts) { const w = sWords(a); if (w.length === 1 && HF_CMD[w[0]]) return HF_CMD[w[0]]; }
+  return null;
+}
+const hfSt = (t, cls = "") => { const e = $("hfst"); if (e) { e.textContent = t; e.className = "hfst " + cls; } };
+function hfNote() {
+  const e = $("hfnote"); if (!e || !hf) return;
+  e.className = "hfnote" + (hf.lo ? " err" : "");
+  e.textContent = hf.lo ? (hf.loWhy || "Listen-only") + " – you'll hear the English, then time to say it yourself, then the answer. No scoring; progress isn't changed."
+    : "Say the whole sentence. Or say “skip”, “repeat” or “stop”.";
+}
+function hfRender() {
+  const [sent, en] = deck.items[card], level = (P().c[card] || [0])[0];
+  $("prog").style.width = (pos / round.length * 100) + "%";
+  $("main").innerHTML = `<div class="card hf">
+    <div class="level"><span>🎧 Hands-free · ${level ? "Review · " + level * 25 + "%" : "New"}<span class="badge">${LEVELS[deck.lv[card]]}</span></span><span>${pos + 1} / ${round.length}</span></div>
+    <div class="hfst" id="hfst" aria-live="polite"></div>
+    <div class="hflab">English</div><div class="hfen">${esc(en)}</div>
+    <div class="hflab">${esc(deck.name)}</div><div class="hfsent veil" id="hfsent">…</div>
+    <div class="speakbox" id="speakbox"></div>
+    <div class="hfnote" id="hfnote"></div>
+    <button class="hfstop" id="hfstop" type="button">■ Stop</button></div>`;
+  $("hfstop").onclick = () => hfStop();
+  $("srcLink").innerHTML = ` · <a href="https://tatoeba.org/sentences/show/${deck.items[card][5]}" target="_blank" rel="noopener">this sentence</a>`;
+  hfNote();
+}
+const hfReveal = () => { const e = $("hfsent"); if (e) { e.textContent = deck.items[card][0]; e.classList.remove("veil"); } };
+
+async function hfCard(h) {
+  const [sent, en] = deck.items[card], n = sWords(sent).length, name = deck.name, V = deck.voice;
+  hfRender(); h.n++;
+  for (;;) {
+    if (cfg.hfEn !== false) { hfSt("🔊 Listen…"); await hfSay(h, en, "en-GB", 1); }
+    await hfSleep(h, hfGap(600));
+    if (h.lo) {   // no microphone: time to say it yourself, then the answer
+      hfSt("Say it in " + name + "…");
+      await hfSleep(h, 1200 * n + 2000);
+      hfReveal(); hfSt("🔊 " + name);
+      await hfSay(h, sent, V);
+      pos++;
+      await hfSleep(h, hfGap(900));
+      return;
+    }
+    hfSt("● Listening – say it in " + name);
+    const { alts, err } = await hfListen(h, 8000 + 400 * n);
+    hfChk(h);
+    if (err === "not-allowed" || err === "service-not-allowed") { micDenied = true; h.lo = true; h.loWhy = "Microphone permission was denied"; hfNote(); continue; }
+    const cmd = hfCmd(alts, sent);
+    if (cmd === "stop") { hfStop(); throw HALT; }
+    if (cmd === "skip") { pos++; hfSt("Skipped"); await hfSay(h, "Skipped.", "en-GB", 1); return; }
+    if (cmd === "repeat") { hfSt("Again"); continue; }
+    if (!alts.length) {
+      if (err && err !== "no-speech" && err !== "aborted" && ++h.errs >= 2) {   // recognition keeps failing (offline?)
+        h.lo = true; h.loWhy = err === "network" ? "Speech recognition needs an internet connection" : "Speech recognition isn't working (" + err + ")"; hfNote(); continue;
+      }
+      record(false); pos++; renderStats();
+      hfReveal(); hfSt("Didn't hear anything", "bad");
+      await hfSay(h, sent, V, 0.6);
+      await hfSleep(h, hfGap(900));
+      return;
+    }
+    h.errs = 0;
+    let best = null;
+    for (const a of alts) { const sc = scoreSpeech(sent, a); if (!best || sc.score > best.score) best = sc; }
+    const right = best.score >= 70, p = P();
+    p.s ||= {}; if (p.s[card] == null || best.score > p.s[card]) p.s[card] = best.score;
+    record(right, 8); pos++; renderStats();
+    hfReveal();
+    hfSt((right ? "✓ " : "✗ ") + best.score + "% · " + speakLabel(best.score), right ? "good" : "bad");
+    $("speakbox").innerHTML = `<div class="tw">${marksHtml(best)}</div><div class="said">You said: ${esc(best.said || "…")}</div>`;
+    await hfSay(h, right ? "Good." : "Not quite.", "en-GB", 1);
+    await hfSay(h, sent, V);
+    if (!right) { await hfSleep(h, 300); await hfSay(h, sent, V, 0.6); }
+    await hfSleep(h, hfGap(900));
+    return;
+  }
+}
+async function hfLoop(h) {
+  while (hf === h) {
+    try {
+      while (pos < round.length && P().k && P().k[round[pos]]) pos++;
+      if (pos >= round.length) {
+        if (h.n) {
+          $("main").innerHTML = `<div class="card hf"><div class="hfst" id="hfst"></div><button class="hfstop" id="hfstop" type="button" style="margin-top:auto">■ Stop</button></div>`;
+          $("hfstop").onclick = () => hfStop(); $("prog").style.width = "100%";
+          hfSt(`Round done: ${roundRight} of ${round.length}`);
+          if (!h.lo) await hfSay(h, `Round done. ${roundRight} out of ${round.length}.`, "en-GB", 1);
+          await hfSleep(h, hfGap(1200));
+        }
+        queue = buildQueue(); round = queue.slice(0, ROUND); pos = 0; roundRight = 0;
+        if (!round.length) { hfStop(); renderDone(true); return; }
+      }
+      card = round[pos];
+      await hfCard(h);
+    } catch (e) {
+      if (e === PAUSE) { await new Promise(r => { if (!h.paused) r(); else h.resume = r; }); h.resume = null; continue; }
+      if (e === HALT) return;
+      console.warn("hands-free:", e); hfStop(); return;
+    }
+  }
+}
+async function hfWake(h) {
+  try {
+    if (!navigator.wakeLock || hf !== h || document.hidden) return;
+    const wl = await navigator.wakeLock.request("screen");
+    if (hf === h) h.wl = wl; else wl.release();
+  } catch {}
+}
+function hfStart() {
+  if (hf || !deck) return;
+  closeSheet(); stopRec();
+  const h = hf = { lo: !SR || micDenied, loWhy: !SR ? "Speech recognition isn't available here" : micDenied ? "Microphone permission was denied" : "", paused: false, errs: 0, n: 0 };
+  $("hfree").classList.add("on"); $("hfree").setAttribute("aria-pressed", "true");
+  hfLoop(h);   // runs synchronously up to the first speech, so this tap unlocks audio
+  hfWake(h);
+}
+function hfStop(render = true) {
+  const h = hf; if (!h) return;
+  hf = null;
+  if (h.kick) h.kick(); if (h.endRec) h.endRec(); if (h.resume) h.resume();
+  try { speechSynthesis.cancel(); } catch {}
+  try { h.wl && h.wl.release(); } catch {}
+  $("hfree").classList.remove("on"); $("hfree").setAttribute("aria-pressed", "false");
+  if (render && deck) next(true);
+}
+document.addEventListener("visibilitychange", () => {
+  const h = hf; if (!h) return;
+  if (document.hidden) {   // pause: stop talking and listening; the card starts again when visible
+    h.paused = true;
+    if (h.kick) h.kick(); if (h.endRec) h.endRec();
+    try { speechSynthesis.cancel(); } catch {}
+  } else {
+    h.paused = false; hfWake(h);
+    if (h.resume) h.resume();
+  }
+});
 
 function renderDone(empty) {
   $("prog").style.width = "100%";
@@ -658,18 +875,19 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
 document.addEventListener("keydown", e => {
-  if (cfg.mode !== "choice" || e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || $("sheetbg")) return;
+  if (hf || cfg.mode !== "choice" || e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || $("sheetbg")) return;
   if (!answered && /^[1-4]$/.test(e.key)) document.querySelectorAll(".choices button")[+e.key - 1]?.click();
   else if (answered && e.key === "Enter") $("next")?.click();
 });
 
-function setMode(m) { cfg.mode = m; LS.set("cfg", cfg); $("mChoice").classList.toggle("on", m === "choice"); $("mType").classList.toggle("on", m === "type"); $("mSpeak").classList.toggle("on", m === "speak"); if (deck) next(); }
+function setMode(m) { hfStop(false); cfg.mode = m; LS.set("cfg", cfg); $("mChoice").classList.toggle("on", m === "choice"); $("mType").classList.toggle("on", m === "type"); $("mSpeak").classList.toggle("on", m === "speak"); if (deck) next(); }
 $("mSpeak").onclick = () => setMode("speak");
 $("mChoice").onclick = () => setMode("choice");
 $("mType").onclick = () => setMode("type");
 $("gear").onclick = () => deck && openSettings();
+$("hfree").onclick = () => hf ? hfStop() : hfStart();
 $("mListen").onclick = () => { cfg.listen = !cfg.listen; LS.set("cfg", cfg); $("mListen").classList.toggle("on", cfg.listen); };
-$("lang").onchange = async e => { closeSheet(); cfg.lang = e.target.value; LS.set("cfg", cfg); await open(); };
+$("lang").onchange = async e => { hfStop(false); closeSheet(); cfg.lang = e.target.value; LS.set("cfg", cfg); await open(); };
 
 async function open() {
   $("main").innerHTML = '<div class="card"><div class="sent">Loading…</div></div>';
