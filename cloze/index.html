@@ -185,8 +185,23 @@ async function loadDeck(code) {
   const d = await r.json();
   // words indexed by rank, for picking believable wrong answers
   d.rankOf = new Map(d.words.map((w, i) => [w, i]));
+  migrate(code, d);
   buildLevels(d);
   return (decks[code] = d);
+}
+
+/* A rebuilt deck lists the old deck's sentence ids; progress on sentences that are still in it moves across. */
+function migrate(code, d) {
+  const p = prog[code];
+  if (!p) { if (d.v) prog[code] = { c: {}, n: 0, v: d.v }; return; }
+  if (!d.v || p.v === d.v) return;
+  if (d.old) {
+    const at = new Map(d.items.map((it, i) => [it[5], i]));
+    const move = o => { const n = {}; for (const [k, v] of Object.entries(o || {})) { const j = at.get(d.old[k]); if (j != null) n[j] = v; } return n; };
+    p.c = move(p.c); if (p.k) p.k = move(p.k); if (p.f) p.f = move(p.f);
+  } else { p.c = {}; delete p.k; delete p.f; }
+  p.n = 0; p.v = d.v;
+  LS.set("progress", prog);
 }
 
 /* Due reviews first (oldest due first), then new cards in deck order (easy → hard). */
