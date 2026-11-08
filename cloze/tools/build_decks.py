@@ -108,6 +108,72 @@ def build(src: Path, code: str, eng: dict, old: dict | None):
     return out
 
 
+# Polish uses absolute CEFR levels (cefr_pl.py): sentences per level in the deck
+POL_QUOTA = [900, 1100, 1400, 1600, 1000]
+POL_BAD = {"ziri", "rima", "skura", "yanni", "mennad", "baya", "sami", "layla", "taninna", "nuja", "sharif"}
+
+
+def build_pol(src: Path, eng: dict, old: dict | None):
+    """Polish deck on true levels: up to 25 words, wide vocabulary, each sentence tagged A1–C1 by
+    cefr_pl. Sentences from the previous deck are preferred within a level so progress carries over."""
+    from cefr_pl import Scorer, proper_nouns
+    sents = load(src / "pol_sentences.tsv", "pol")
+    en_of = {}
+    with open(src / "pol-eng_links.tsv", encoding="utf8") as f:
+        for line in f:
+            a, b = map(int, line.split("\t")[:2])
+            if a in sents and b in eng and a not in en_of:
+                en_of[a] = eng[b]
+    with open(src / "pl_50k.txt", encoding="utf8") as f:
+        sc = Scorer(f, (w for s in sents.values() for w in toks(s)))
+    prop = proper_nouns(sents.values(), None) | NAMES
+    old_ids = {it[5] for it in old["items"]} if old else set()
+    by, seen = [[] for _ in POL_QUOTA], set()
+    for sid in sorted(en_of):
+        s = sents[sid].strip()
+        if s.lower() in seen or len(s) > 170 or re.search(r"\d|[\"“”„«»()\[\]'’]", s):
+            continue
+        seen.add(s.lower())
+        t = toks(s)
+        if not 3 <= len(t) <= 25 or any(w in POL_BAD for w in t) or sum(w in prop for w in t) > 1:
+            continue
+        r = sc.level(t, NAMES, prop)
+        if r is None:
+            continue
+        lv, top = r
+        # the gap: the word with the rarest lemma, not a name, at least 2 letters
+        best = None
+        for m in WORD_RE.finditer(unicodedata.normalize("NFC", s)):
+            w = m.group().lower()
+            if w in prop or len(w) < 2:
+                continue
+            rk = sc.rank(w)
+            if rk is not None and (best is None or rk > best[2]):
+                best = (m, w, rk)
+        if not best:
+            continue
+        diff = math.log(2 + top) + .12 * len(t)
+        by[lv].append((sid in old_ids, (sid * 2654435761) % 2**32, diff, lv, [s, en_of[sid], best[0].start(), best[0].group(), 0, sid]))
+    chosen = []
+    for lv, want in enumerate(POL_QUOTA):
+        pool = sorted(by[lv], key=lambda x: (not x[0], x[1]))     # met before first, then a fixed shuffle
+        chosen += pool[:want]
+        print(f"  {'A1 A2 B1 B2 C1'.split()[lv]}: {min(want, len(pool))} of {len(pool)}, {sum(x[0] for x in pool[:want])} kept from the old deck")
+    chosen.sort(key=lambda x: (x[3], x[2], x[4][5]))
+    freq = Counter(w for x in chosen for w in toks(x[4][0]))
+    words = [w for w, _ in freq.most_common() if w not in NAMES and len(w) > 1]
+    rank = {w: i for i, w in enumerate(words)}
+    for x in chosen:
+        x[4][4] = rank.get(x[4][3].lower(), len(words))
+    out = {"lang": "pol", "name": "Polish", "voice": "pl-PL", "count": len(chosen), "v": (old or {}).get("v", 2) + 1,
+           "credit": "Sentences from Tatoeba (tatoeba.org), CC-BY 2.0 FR",
+           "levels": "absolute", "lv": "".join(str(x[3]) for x in chosen),
+           "words": words, "items": [x[4] for x in chosen]}
+    if old:
+        out["old"] = [it[5] for it in old["items"]]
+    return out
+
+
 def main():
     src = Path(sys.argv[1])
     codes = sys.argv[2:] or list(META)
@@ -118,7 +184,11 @@ def main():
         old = json.loads(f.read_text()) if f.exists() else None
         if old and old.get("v") == 2:
             old = {"items": [[None] * 5 + [i] for i in old.get("old", [])]} if old.get("old") else None
-        d = build(src, code, eng, old)
+        if code == "pol":
+            old = json.loads(f.read_text()) if f.exists() else None    # migrate from the deck as it stands
+            d = build_pol(src, eng, old)
+        else:
+            d = build(src, code, eng, old)
         f.write_text(json.dumps(d, ensure_ascii=False, separators=(",", ":")))
         L = sorted(len(toks(it[0])) for it in d["items"])
         print(f"{code}: {d['count']} sentences, words/sentence median {L[len(L)//2]}, "

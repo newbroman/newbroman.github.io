@@ -261,9 +261,14 @@ function buildLevels(d) {
     const ls = t.map(w => Math.log(first.get(cnt.get(w))));
     return Math.max(...ls) + .5 * ls.reduce((a, b) => a + b, 0) / ls.length + .12 * t.length;
   });
-  const order = sc.map((_, i) => i).sort((a, b) => sc[a] - sc[b] || a - b);
-  d.lv = new Uint8Array(sc.length);
-  order.forEach((i, k) => { const f = k / order.length; d.lv[i] = f < LV_CUT[0] ? 0 : f < LV_CUT[1] ? 1 : f < LV_CUT[2] ? 2 : f < LV_CUT[3] ? 3 : 4; });
+  if (typeof d.lv === "string" && d.lv.length === d.items.length) {
+    // the deck carries absolute levels (Polish: vocabulary, grammar and length, see tools/cefr_pl.py)
+    d.lv = Uint8Array.from(d.lv, c => +c);
+  } else {
+    const order = sc.map((_, i) => i).sort((a, b) => sc[a] - sc[b] || a - b);
+    d.lv = new Uint8Array(sc.length);
+    order.forEach((i, k) => { const f = k / order.length; d.lv[i] = f < LV_CUT[0] ? 0 : f < LV_CUT[1] ? 1 : f < LV_CUT[2] ? 2 : f < LV_CUT[3] ? 3 : 4; });
+  }
   // spelling to look words up under: capitalised only if it usually is in mid-sentence (German nouns, names)
   const cap = new Map(), low = new Map();
   for (const it of d.items) for (const m of it[0].matchAll(WORD_RE)) {
